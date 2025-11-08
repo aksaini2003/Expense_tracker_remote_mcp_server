@@ -3,7 +3,8 @@ import os
 import aiosqlite  # Changed: sqlite3 → aiosqlite
 import tempfile
 
-#NOTE: this will allows the modification in the sqlite server  
+#NOTE: this will allows the modification in the sqlite server  and allows the asynchronized usage of mcp
+#server
 
 # Use temporary directory which should be writable
 TEMP_DIR = tempfile.gettempdir()
@@ -77,6 +78,26 @@ async def list_expenses(start_date, end_date):  # Changed: added async
     except Exception as e:
         return {"status": "error", "message": f"Error listing expenses: {str(e)}"}
 
+@mcp.tool()
+async def delete_expense(expense_id: int):
+    '''Delete an expense from the database using its ID.'''
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:
+            cur = await c.execute(
+                "DELETE FROM expenses WHERE id = ?",
+                (expense_id,)
+            )
+            await c.commit()
+
+            if cur.rowcount == 0:
+                return {"status": "error", "message": f"No expense found with id {expense_id}"}
+
+            return {"status": "success", "message": f"Expense with id {expense_id} deleted successfully"}
+
+    except Exception as e:
+        if "readonly" in str(e).lower():
+            return {"status": "error", "message": "Database is in read-only mode. Check file permissions."}
+        return {"status": "error", "message": f"Error while deleting expense: {str(e)}"}
 @mcp.tool()
 async def summarize(start_date, end_date, category=None):  # Changed: added async
     '''Summarize expenses by category within an inclusive date range.'''
